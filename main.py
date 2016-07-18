@@ -9,7 +9,7 @@ from google import search
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 from serv import myHandler
 
-db = sqlite3.connect('cache.db')
+
 config = ConfigParser.RawConfigParser()
 config.readfp(open('defaults.cfg'))
 google_scan_urls = config.getboolean('section', 'google_scan_urls')
@@ -52,23 +52,28 @@ def googleCheck(asin):
 
 
 def isASINAlreadyChecked(asin):
+    db = sqlite3.connect('cache.db')
     cur = db.cursor()
     cur.execute("SELECT * FROM amazon_items WHERE asin = '%s'" % asin)
     if cur.fetchall():
+        db.close()
         return True
     else:
+        db.close()
         return False
 
 
 def writeASINToDB(asin):
+    db = sqlite3.connect('cache.db')
     cur = db.cursor()
     url = 'https://www.amazon.com/dp/' + asin
     status = checkASIN(asin)
     cur.execute("INSERT INTO amazon_items VALUES ('%s', '%s', '%s')" %
                 (asin, url, status))
     db.commit()
+    db.close()
 
-def runServer(event_for_wait, event_for_set):
+def runServer():
     try:
         server = HTTPServer(('', PORT), myHandler)
         ###Wait forever for incoming htto requests
@@ -77,25 +82,26 @@ def runServer(event_for_wait, event_for_set):
         print '^C received, shutting down the web server'
         server.socket.close()
 
-def scraper(event_for_wait, event_for_set):
+def scraper():
     while 1:
         asin = generateASIN()
         if not isASINAlreadyChecked(asin):
             if googleCheck(asin):
                 checkASIN(asin)
                 writeASINToDB(asin)
-                #return '%s in da base. %s' % (asin, checkASIN(asin))
+                print '%s in da base. %s' % (asin, checkASIN(asin))
             #else: return 'no one result in google search'
         #else: return 'already in base '
 
 
 def main():
+    for i in range(0, threads_count):
+        t = threading.Thread(target=scraper)
+        t.start()
 
-    e1 = threading.Event()
-    e2 = threading.Event()
+    httpServThread = threading.Thread(target=runServer)
+    httpServThread.start()
 
-    t1 = threading.Thread(target=scraper, args=(e1, e2))
-    t2 = threading.Thread(target=runServer, args=(e2, e1))
 
-    t1.start()
-    t2.start()
+if __name__ == "__main__":
+    main()
