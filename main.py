@@ -6,6 +6,7 @@ import string
 import sqlite3
 from lxml import html
 from google import search
+from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 
 db = sqlite3.connect('cache.db')
 
@@ -27,6 +28,7 @@ def checkASIN(asin):
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.90 Safari/537.36'}
     url = 'https://www.amazon.com/dp/' + asin
+
     page = requests.get(url, headers=headers)
     html_tree = html.fromstring(page.content)
     if html_tree.xpath('//img[@src="https://images-na.ssl-images-amazon.com/images/G/01/error/title._TTD_.png"]'):
@@ -62,13 +64,19 @@ def writeASINToDB(asin):
     cur = db.cursor()
     url = 'https://www.amazon.com/dp/' + asin
     status = checkASIN(asin)
-    cur.execute("INSERT INTO amazon_items VALUES ('%s', '%s', '%s')" % (asin, url, status))
+    cur.execute("INSERT INTO amazon_items VALUES ('%s', '%s', '%s')" %
+                (asin, url, status))
     db.commit()
 
-asin = generateASIN()
-asin = 'B00ATDPHTC'
-checkASIN(asin)
-asin
-checkUrl('https://www.amazon.com/dp/B00ATDPHTC')
-checkUrl('https://www.amazon.com/dp/B00QKGAOSQ')
-checkUrl('https://www.amazon.com/dp/B00GOVNISHE')
+
+def main():
+    asin = generateASIN()
+    if not isASINAlreadyChecked(asin):
+        if googleCheck(asin):
+            checkASIN(asin)
+            writeASINToDB(asin)
+            return '%s' % asin
+        else: return 'no one result in google search'
+    else: return 'already in base'
+
+main()
