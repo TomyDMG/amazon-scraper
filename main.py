@@ -6,7 +6,7 @@ import sqlite3
 import threading
 from lxml import html
 from google import search
-from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
+from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from serv import myHandler
 
 
@@ -42,12 +42,17 @@ def checkASIN(asin):
 
 
 def googleCheck(asin):
-    count = 0
-    for url in search(asin, stop = google_min_results):
-        count += 1
-    if count >= google_min_results - 1:
-        return True
-    else:
+    try:
+        count = 0
+        for url in search(asin, tld='ru', stop=google_min_results, pause=20.0):
+            count += 1
+        if count >= google_min_results - 1:
+            return True
+        else:
+            print 'no one result in google search for %s' % asin
+            return False
+    except Exception:
+        print 'Bad response from google'
         return False
 
 
@@ -73,14 +78,16 @@ def writeASINToDB(asin):
     db.commit()
     db.close()
 
+
 def runServer():
     try:
         server = HTTPServer(('', PORT), myHandler)
-        ###Wait forever for incoming htto requests
+        # Wait forever for incoming htto requests
         server.serve_forever()
     except KeyboardInterrupt:
         print '^C received, shutting down the web server'
         server.socket.close()
+
 
 def scraper():
     while 1:
@@ -90,8 +97,9 @@ def scraper():
                 checkASIN(asin)
                 writeASINToDB(asin)
                 print '%s in da base. %s' % (asin, checkASIN(asin))
-            #else: return 'no one result in google search'
-        #else: return 'already in base '
+            # else: print 'no one result in google search for %s' % asin
+        else:
+            print '%s already in base ' % asin
 
 
 def main():
