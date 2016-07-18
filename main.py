@@ -3,6 +3,7 @@ import ConfigParser
 import random
 import string
 import sqlite3
+import threading
 from lxml import html
 from google import search
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
@@ -12,6 +13,7 @@ db = sqlite3.connect('cache.db')
 config = ConfigParser.RawConfigParser()
 config.readfp(open('defaults.cfg'))
 google_scan_urls = config.getboolean('section', 'google_scan_urls')
+google_min_results = config.getint('section', 'google_min_results')
 threads_count = config.getint('section', 'threads_count')
 PORT = config.getint('section', 'PORT_NUMBER')
 
@@ -25,7 +27,7 @@ def generateASIN():
 
 def checkASIN(asin):
     headers = {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.90 Safari/537.36'}
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)'}
     url = 'https://www.amazon.com/dp/' + asin
     page = requests.get(url, headers=headers)
     html_tree = html.fromstring(page.content)
@@ -41,9 +43,9 @@ def checkASIN(asin):
 
 def googleCheck(asin):
     count = 0
-    for url in search(asin, stop=config.getint('section', 'google_min_results')):
+    for url in search(asin, stop = google_min_results):
         count += 1
-    if count != 0:
+    if count >= google_min_results - 1:
         return True
     else:
         return False
@@ -66,22 +68,34 @@ def writeASINToDB(asin):
                 (asin, url, status))
     db.commit()
 
-
-def main():
+def runServer(event_for_wait, event_for_set):
     try:
-    	server = HTTPServer(('', PORT), myHandler)
-        print 'Started httpserver on port ' , PORT
-    	###Wait forever for incoming htto requests
-    	server.serve_forever()
+        server = HTTPServer(('', PORT), myHandler)
+        ###Wait forever for incoming htto requests
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print '^C received, shutting down the web server'
+        server.socket.close()
 
-
+def scraper(event_for_wait, event_for_set):
+    while 1:
         asin = generateASIN()
         if not isASINAlreadyChecked(asin):
             if googleCheck(asin):
                 checkASIN(asin)
                 writeASINToDB(asin)
-                return '%s in da base' % asin
-            else: return 'no one result in google search'
-        else: return 'already in base'
+                #return '%s in da base. %s' % (asin, checkASIN(asin))
+            #else: return 'no one result in google search'
+        #else: return 'already in base '
 
-main()
+
+def main():
+
+    e1 = threading.Event()
+    e2 = threading.Event()
+
+    t1 = threading.Thread(target=scraper, args=(e1, e2))
+    t2 = threading.Thread(target=runServer, args=(e2, e1))
+
+    t1.start()
+    t2.start()
