@@ -1,5 +1,4 @@
 import requests
-import re
 import ConfigParser
 import random
 import string
@@ -7,14 +6,14 @@ import sqlite3
 from lxml import html
 from google import search
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
+from serv import myHandler
 
 db = sqlite3.connect('cache.db')
-
-
 config = ConfigParser.RawConfigParser()
 config.readfp(open('defaults.cfg'))
 google_scan_urls = config.getboolean('section', 'google_scan_urls')
 threads_count = config.getint('section', 'threads_count')
+PORT = config.getint('section', 'PORT_NUMBER')
 
 
 def generateASIN():
@@ -28,7 +27,6 @@ def checkASIN(asin):
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.90 Safari/537.36'}
     url = 'https://www.amazon.com/dp/' + asin
-
     page = requests.get(url, headers=headers)
     html_tree = html.fromstring(page.content)
     if html_tree.xpath('//img[@src="https://images-na.ssl-images-amazon.com/images/G/01/error/title._TTD_.png"]'):
@@ -70,13 +68,20 @@ def writeASINToDB(asin):
 
 
 def main():
-    asin = generateASIN()
-    if not isASINAlreadyChecked(asin):
-        if googleCheck(asin):
-            checkASIN(asin)
-            writeASINToDB(asin)
-            return '%s' % asin
-        else: return 'no one result in google search'
-    else: return 'already in base'
+    try:
+    	server = HTTPServer(('', PORT), myHandler)
+        print 'Started httpserver on port ' , PORT
+    	###Wait forever for incoming htto requests
+    	server.serve_forever()
+
+
+        asin = generateASIN()
+        if not isASINAlreadyChecked(asin):
+            if googleCheck(asin):
+                checkASIN(asin)
+                writeASINToDB(asin)
+                return '%s in da base' % asin
+            else: return 'no one result in google search'
+        else: return 'already in base'
 
 main()
