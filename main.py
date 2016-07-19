@@ -56,8 +56,11 @@ def generateASIN():
 def checkASIN(asin):
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)'}
+    proxie = random.choice(open('proxies.txt').readlines()).split(':')
+    proxie[3] = proxie[3].replace('\n', '')
     url = 'https://www.amazon.com/dp/' + asin
-    page = requests.get(url, headers=headers)
+    page = requests.get(url, headers=headers, proxies={
+                        'http': 'http://%s:%s@%s:%s/' % (proxie[2], proxie[3], proxie[0], proxie[1])})
     html_tree = html.fromstring(page.content)
     if html_tree.xpath('//img[@src="https://images-na.ssl-images-amazon.com/images/G/01/error/title._TTD_.png"]'):
         status = 'BLOCKED'
