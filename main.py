@@ -4,10 +4,38 @@ import random
 import string
 import sqlite3
 import threading
+import zipfile
 from lxml import html
 from google import search
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-from serv import myHandler
+
+
+class myHandler(BaseHTTPRequestHandler):
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Description', 'File Transfer')
+        self.send_header('Content-type', 'application/octet-stream')
+        self.send_header('Content-Disposition',
+                         'attachment; filename=amazon_bad_items.zip')
+        self.send_header('Content-Transfer-Encoding', 'binary')
+        self.send_header('Expires', '0')
+        self.send_header('Cache-Control', 'must-revalidate')
+        self.send_header('Pragma', 'public')
+        self.end_headers()
+        db = sqlite3.connect('cache.db')
+        cur = db.cursor()
+        allDB = cur.execute('SELECT * FROM amazon_items').fetchall()
+        dbLenght = allDB.__len__()
+        textFile = open('amazon.txt', 'w')
+        for i in range(0, dbLenght):
+            textFile.write(allDB[i].__str__() + '\n')
+        textFile.close()
+        db.close()
+        with zipfile.ZipFile('amazon.zip', 'w') as zip:
+            zip.write('amazon.txt')
+        self.wfile.write(open('amazon.zip').read())
+        return
 
 
 config = ConfigParser.RawConfigParser()
